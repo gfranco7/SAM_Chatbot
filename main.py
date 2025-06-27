@@ -1,25 +1,29 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import requests
-from agent_logic import procesar_datos
-
+from agent_logic import extraer_datos_con_ia, procesar_datos
 
 app = FastAPI()
 
 class DatosUsuario(BaseModel):
     nombre: str
-    num_id: str
+    cedula: str
     tipo_contrato: str
+    salario: float
 
-@app.post("/generate-contract")
-def generate_contract(datos: DatosUsuario):
+class TextoLibre(BaseModel):
+    mensaje: str
+
+@app.post("/analizar-mensaje")
+def analizar_mensaje(texto: TextoLibre):
     try:
-        datos_procesados = procesar_datos(datos)
-        print(" = > Datos listos para backend:", datos_procesados)
+        datos_extraidos = extraer_datos_con_ia(texto.mensaje)
+
+        datos_validados = procesar_datos(DatosUsuario(**datos_extraidos))
 
         return {
-            "message": "Datos validados y listos para generar el contrato.",
-            "datos": datos_procesados
+            "mensaje": "Datos extraídos y validados correctamente.",
+            "datos": datos_validados
         }
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
