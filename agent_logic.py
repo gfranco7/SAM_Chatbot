@@ -5,7 +5,7 @@ import openai
 
 
 
-openai.api_key = os.getenv("OPENROUTER_API_KEY")  
+openai.api_key = os.getenv("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")  
 openai.api_base = "https://openrouter.ai/api/v1"
 app = FastAPI()
 
