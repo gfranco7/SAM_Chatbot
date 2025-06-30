@@ -37,3 +37,19 @@ Ejemplo de respuesta:
         return datos_extraidos
     except Exception as e:
         raise ValueError("La IA no devolvió un JSON válido. Error: " + str(e))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"""
+Estoy creando un chatbox el cual tiene la función de generar contratos. Contexto: estoy elaborando el agente, pero tengo que conectarlo con fronted y backend. Entonces mi cliente quiere poder interactuar con el agente, saludar, y escribir que tipo de contrato quiere generar """

@@ -1,69 +1,32 @@
-from fastapi import FastAPI, HTTPException
+import json
 import re
+from openai import OpenAI
+from dotenv import load_dotenv
 import os
-import openai
+from session_store import get_session, reset_session
 
+load_dotenv()
 
-
-openai.api_key = os.getenv("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")  
-openai.api_base = "https://openrouter.ai/api/v1"
-app = FastAPI()
-
-def extraer_datos_con_ia(texto_usuario):
-    prompt = f"""
-Extrae los siguientes campos del siguiente texto de manera estructurada en formato JSON:
-- nombre (solo letras)
-- cedula (solo números)
-- tipo_contrato (entre fijo, indefinido o prestacion)
-- salario (solo número en pesos)
-
-Texto del usuario:
-\"\"\"{texto_usuario}\"\"\"
-
-Ejemplo de respuesta:
-{{
-  "nombre": "Juan Pérez",
-  "cedula": "123456789",
-  "tipo_contrato": "fijo",
-}}
-"""
-
-    response = openai.ChatCompletion.create(
-        model="mistralai/mistral-7b-instruct",  
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
-    )
-
-    content = response.choices[0].message.content
-
-    try:
-        datos_extraidos = eval(content) 
-        return datos_extraidos
-    except Exception as e:
-        raise ValueError("La IA no devolvió un JSON válido. Error: " + str(e))
-
-
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    base_url="https://openrouter.ai/api/v1"
+)
 
 def procesar_datos(datos):
-    """
-    Valida y limpia los datos extraídos (sea por formulario o IA).
-    Devuelve un dict listo para el backend.
-    """
-
-    nombre = datos.nombre.strip().title()
+    nombre = datos.get("nombre", "").strip().title()
     if not re.fullmatch(r"[A-Za-zÁÉÍÓÚáéíóúÑñ ]+", nombre):
-        raise ValueError("El nombre solo puede contener letras y espacios")
+        return False, "El nombre solo puede contener letras y espacios."
 
-    cedula = datos.cedula.strip()
-    if not cedula.isdigit():
-        raise ValueError("La cédula debe contener solo números")
+    cedula = datos.get("cedula", "").strip()
+    if not (cedula.isdigit() and len(cedula) == 10):
+        return False, "La cédula debe contener solo números y tener exactamente 10 dígitos."
 
-    tipo_usuario = datos.tipo_contrato.strip().lower()
+    tipo_usuario = datos.get("tipo_contrato", "").strip().lower()
 
     tipos_validos = {
-        "fijo": ["fijo", "temporal", "plazo", "a termino fijo", "término fijo"],
-        "indefinido": ["indefinido", "a termino indefinido", "término indefinido", "permanente"],
-        "prestacion": ["prestacion", "servicios", "freelance", "prestación de servicios"]
+        "fijo": ["fijo", "temporal", "a termino fijo"],
+        "indefinido": ["indefinido", "permanente", "a termino indefinido"],
+        "prestacion": ["servicios", "freelance", "prestacion de servicios"]
     }
 
     tipo_contrato_estandar = None
@@ -73,13 +36,77 @@ def procesar_datos(datos):
             break
 
     if not tipo_contrato_estandar:
-        raise ValueError("El tipo de contrato no es reconocido")
+        return False, "El tipo de contrato no es reconocido."
 
-    return {
+    return True, {
         "nombre": nombre,
         "cedula": cedula,
-        "tipo_contrato": tipo_contrato_estandar,
+        "tipo_contrato": tipo_contrato_estandar
     }
 
+def analizar_mensaje(user_id, mensaje):
+    session = get_session(user_id)
 
+    # Paso 1: el usuario está ingresando datos
+    if session["fase"] == "esperando_datos":
+        datos_extraidos = extraer_datos_ia(mensaje)
+        if "error" in datos_extraidos:
+            return datos_extraidos["error"]
 
+        es_valido, resultado = procesar_datos(datos_extraidos)
+        if not es_valido:
+            return f"{resultado} Por favor corrige la información."
+
+        session["datos"] = resultado
+        session["fase"] = "esperando_confirmacion"
+
+        resumen = (
+            f"He entendido los siguientes datos:\n"
+            f"- Nombre: {resultado['nombre']}\n"
+            f"- Cédula: {resultado['cedula']}\n"
+            f"- Tipo de contrato: {resultado['tipo_contrato']}\n\n"
+            f"¿Confirmas que deseas generar el contrato con esta información?"
+        )
+        return resumen
+
+    # Paso 2: el usuario responde si confirma o no
+    elif session["fase"] == "esperando_confirmacion":
+        if mensaje.lower() in ["sí", "si", "perfecto", "de una", "dale", "avancemos"]:
+            datos_finales = session["datos"]
+            reset_session(user_id)
+            return f"✅ Contrato generado con éxito para {datos_finales['nombre']}. (Aquí iría la llamada al backend)"
+
+        else:
+            reset_session(user_id)
+            return "Proceso cancelado. Si deseas iniciar de nuevo, proporciona los datos."
+
+def extraer_datos_ia(mensaje):
+    prompt = f"""
+Devuelve un JSON con estos campos si están presentes: nombre, cedula, tipo_contrato. Esta informacion puede ser 
+enviada por el usuario en un mensaje largo o con contxto adicional y en desorden. 
+Por ejemplo:
+Quiero un contrato de presatación de servicios para Maryana Peñaloza con numero de cedula 1103499169.
+
+Si faltan o son inválidos, responde así: {{"error": "Descripción del problema"}}
+
+Ejemplo válido:
+{{
+  "nombre": "Laura Pérez",
+  "cedula": "1234567890",
+  "tipo_contrato": "fijo"
+}}
+
+Texto:
+\"\"\"{mensaje}\"\"\"
+"""
+
+    response = client.chat.completions.create(
+        model="mistralai/mistral-7b-instruct",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3
+    )
+
+    try:
+        return json.loads(response.choices[0].message.content)
+    except Exception:
+        return {"error": "La IA no devolvió un JSON válido. Por favor intenta de nuevo."}
