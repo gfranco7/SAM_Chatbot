@@ -10,7 +10,7 @@ def chat_loop():
     while True:
         entrada = input(" Usuario: ")
         
-        if entrada.lower() in ["salir", "exit", "cancelar", " "]:
+        if entrada.lower() in ["salir", "exit", "cancelar"]:
             print("¡Si necesitas generar otro contra")
             break
 

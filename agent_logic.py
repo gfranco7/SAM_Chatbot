@@ -82,6 +82,10 @@ Texto:
 
 def analizar_mensaje(user_id, mensaje):
     session = get_session(user_id)
+    confirmaciones =[
+        "sí", "si", "perfecto", "de una", "dale", "avancemos"
+        "Si", "SI", "Ok", "ok", "oK","Yes", "YES", "yes"
+        ]
 
     if session["fase"] == "esperando_datos":
         datos_extraidos = extraer_datos_ia(mensaje)
@@ -105,7 +109,7 @@ def analizar_mensaje(user_id, mensaje):
         return resumen
 
     elif session["fase"] == "esperando_confirmacion":
-        if mensaje.lower() in ["sí", "si", "perfecto", "de una", "dale", "avancemos"]:
+        if mensaje.lower() in confirmaciones:
             datos_finales = session["datos"]
             reset_session(user_id)
             return f"Contrato generado con éxito para {datos_finales['nombre']}. (Aquí iría la llamada al backend)"
