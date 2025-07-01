@@ -8,10 +8,10 @@ def chat_loop():
     print(" Bienvenido al generador de contratos. Escribe tu solicitud.")
 
     while True:
-        entrada = input(" Tú: ")
+        entrada = input(" Usuario: ")
         
-        if entrada.lower() in ["salir", "exit", "cancelar"]:
-            print("¡Hasta luego!")
+        if entrada.lower() in ["salir", "exit", "cancelar", " "]:
+            print("¡Si necesitas generar otro contra")
             break
 
         respuesta = analizar_mensaje(user_id, entrada)
