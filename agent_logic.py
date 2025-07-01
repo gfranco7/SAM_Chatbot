@@ -1,16 +1,22 @@
 import json
 import re
-from openai import OpenAI
+import google.generativeai as genai
 from dotenv import load_dotenv
 import os
 from session_store import *
 
 load_dotenv()
 
-client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    base_url="https://openrouter.ai/api/v1"
-)
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+
+# models = genai.list_models()
+# for m in models:
+#     print(m.name, "-", m.supported_generation_methods)
+
+
+model = genai.GenerativeModel("gemini-1.5-flash") 
+confirmaciones = ["sí", "si", "perfecto", "dale", "de una", "ok", "avancemos", "yes"]
 
 def procesar_datos(datos):
     nombre = datos.get("nombre", "").strip().title()
@@ -26,7 +32,7 @@ def procesar_datos(datos):
     tipos_validos = {
         "fijo": ["fijo", "temporal", "a termino fijo"],
         "indefinido": ["indefinido", "permanente", "a termino indefinido"],
-        "prestacion": ["servicios", "freelance", "prestacion de servicios"]
+        "prestacion": ["servicios", "freelance", "prestacion de servicios", "prestaciones", "prestación"]
     }
 
     tipo_contrato_estandar = None
@@ -44,76 +50,64 @@ def procesar_datos(datos):
         "tipo_contrato": tipo_contrato_estandar
     }
 
-
-def extraer_datos_ia(mensaje):
-    prompt = f"""
-Devuelve un JSON con estos campos si están presentes: nombre, cedula, tipo_contrato. 
-Esta informacion puede ser enviada por el usuario en un mensaje largo o con 
-contxto adicional y en desorden. 
-Por ejemplo:
-Quiero un contrato de presatación de servicios para Maryana Peñaloza con 
-numero de cedula 1103499169.
-
-Si faltan o son inválidos, responde así: {{"error": "Descripción del problema"}}
-
-Ejemplo válido:
-{{
-  "nombre": "Laura Pérez",
-  "cedula": "1234567890",
-  "tipo_contrato": "fijo"
-}}
-
-Texto:
-\"\"\"{mensaje}\"\"\"
-"""
-
-    response = client.chat.completions.create(
-        model="mistralai/mistral-7b-instruct",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3
-    )
-
-    try:
-        return json.loads(response.choices[0].message.content)
-    except Exception:
-        return {"error": "La IA no devolvió un JSON válido. Por favor intenta de nuevo."}
-
-
-
 def analizar_mensaje(user_id, mensaje):
     session = get_session(user_id)
-    confirmaciones =[
-        "sí", "si", "perfecto", "de una", "dale", "avancemos"
-        "Si", "SI", "Ok", "ok", "oK","Yes", "YES", "yes"
-        ]
 
     if session["fase"] == "esperando_datos":
         datos_extraidos = extraer_datos_ia(mensaje)
+        print("IA respondió:", datos_extraidos)
+
         if "error" in datos_extraidos:
-            return datos_extraidos["error"]
+            return f"{datos_extraidos['error']}"
 
         es_valido, resultado = procesar_datos(datos_extraidos)
         if not es_valido:
-            return f"{resultado} Por favor corrige la información."
+            return resultado
 
         session["datos"] = resultado
         session["fase"] = "esperando_confirmacion"
 
         resumen = (
-            f"He entendido los siguientes datos:\n"
+            f"Confirmación de datos:\n"
             f"- Nombre: {resultado['nombre']}\n"
             f"- Cédula: {resultado['cedula']}\n"
             f"- Tipo de contrato: {resultado['tipo_contrato']}\n\n"
-            f"¿Confirmas que deseas generar el contrato con esta información?"
+            f"¿Deseas continuar con esta información?"
         )
         return resumen
 
     elif session["fase"] == "esperando_confirmacion":
-        if mensaje.lower() in confirmaciones:
+        if mensaje.lower().strip() in confirmaciones:
             datos_finales = session["datos"]
             reset_session(user_id)
-            return f"Contrato generado con éxito para {datos_finales['nombre']}. (Aquí iría la llamada al backend)"
-
+            return f"¡Contrato generado para {datos_finales['nombre']}! Enviando datos al backend..."
         else:
             reset_session(user_id)
-            return "Proceso cancelado. Si deseas iniciar de nuevo, proporciona los datos."
+            return "Proceso cancelado. Puedes iniciar de nuevo cuando quieras."
+
+def extraer_datos_ia(mensaje):
+    prompt = f"""
+Extrae del siguiente texto el nombre, la cédula (10 dígitos) y 
+el tipo de contrato (fijo, indefinido, prestación). 
+Corrige errores leves. Responde solo en formato JSON.
+
+Si falta algún dato, responde con:
+{{ "error": "falta el campo X" }}
+
+Texto:
+\"\"\"{mensaje}\"\"\"
+"""
+
+    try:
+        response = model.generate_content(prompt)
+        content = response.text.strip()
+
+        match = re.search(r"\{.*\}", content, re.DOTALL)
+        if not match:
+            return {"error": "La IA no devolvió un JSON válido"}
+
+        json_text = match.group()
+        return json.loads(json_text)
+
+    except Exception as e:
+        return {"error": f"No se pudo interpretar la respuesta de la IA: {e}"}

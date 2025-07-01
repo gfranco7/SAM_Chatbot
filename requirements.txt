@@ -1,1 +1,10 @@
 Quiero generar un contrato de prestacion de servicios para Gean FRanco Jacome con numero de cedula 1234567890
+
+
+REvisa es prompt. Por alguna razòn al ingresar este input del usuario :"Quiero generar un contrato de prestacion de servicios para Gean FRanco Jacome con numero de cedula 1234567890
+"
+No esta estrayendo el tipo de contrato, y en otras ocaciones sì lo hace. Entonces quiero mejorar mucho mas el prompt 
+para que sea mucho mas preciso en caso de que este sea el problema ya que en la validaciòn de datos se encuentra específicado
+el tipo de contrato y sus sinònimos. 
+
+
