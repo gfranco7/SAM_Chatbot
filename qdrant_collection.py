@@ -1,10 +1,11 @@
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams
+from config_qdrant import qdrant, model, COLLECTION_NAME
 
-client = QdrantClient("http://localhost:6333")
 
+client = qdrant
 
-collection_name = "contrato_pdf_embeddings"
+collection_name = COLLECTION_NAME
 
 
 if collection_name in client.get_collections().collections:

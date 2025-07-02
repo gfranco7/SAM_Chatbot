@@ -4,8 +4,8 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 import uuid
 
-#Configuraciòn del modelo y ruta pdf
-PDF_PATH = "PDFs/instrucciones_IA.pdf"      
+#Configuraciòn del modelo y ruta pdf    
+PDF_PATH = "PDFs/instrucciones_IA (1).pdf"      
 COLLECTION_NAME = "contrato_pdf_embeddings"     
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"            # Modelo eficiente (384 dim)
 
@@ -27,7 +27,7 @@ def extraer_texto(pdf_path):
         texto_total += page.get_text()
     return texto_total
 
-def dividir_en_chunks(texto, max_len=250):
+def dividir_en_chunks(texto, max_len=500):
     oraciones = texto.split(".")
     chunks, actual = [], ""
 

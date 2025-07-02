@@ -1,15 +1,12 @@
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import SearchRequest
+from config_qdrant import qdrant, model, COLLECTION_NAME
 
 
 
-COLLECTION_NAME = "contrato_pdf_embeddings"
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-TOP_K = 3  # fragmentos relevantes a recuperar
+TOP_K = 1 # fragmentos relevantes a recuperar
 
-qdrant = QdrantClient("http://localhost:6333")
-model = SentenceTransformer(EMBEDDING_MODEL)
 
 
 
